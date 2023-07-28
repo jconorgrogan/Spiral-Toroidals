@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Vibrating String</title>
+        <style>
+            canvas {
+                border: 1px solid black;
+            }
+            #3d-canvas {
+                width: 800px;
+                height: 400px;
+            }
+        </style>
+        <script src="https://threejs.org/build/three.min.js"></script> 
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/noisejs/0.2.0/perlin.min.js"></script>
+    </head>
+    <body>
+        <label for="nodes">Nodes: </label>
+        <input type="range" id="nodes" name="nodes" min="1" max="20" value="5" onchange="updateNodes(this.value)" />
+        <input type="number" id="nodeNumber" name="nodeNumber" min="1" max="20" value="5" onchange="updateNodes(this.value)" />
+        <br/>
+        <canvas id="canvas" width="800" height="400"></canvas>
+        <canvas id="canvas2" width="800" height="400"></canvas>
+        <canvas id="canvas3" width="800" height="400"></canvas>
+        <div id="3d-canvas"></div>
+        <script>
+            const circleCanvas = document.getElementById('canvas');
+            const stringCanvas = document.getElementById('canvas2');
+            const waterCanvas = document.getElementById('canvas3');
+            const circleCtx = circleCanvas.getContext('2d');
+            const stringCtx = stringCanvas.getContext('2d');
+            const waterCtx = waterCanvas.getContext('2d');
+            const width = circleCanvas.width;
+            const height = circleCanvas.height;
+            const cx = width / 2;
+            const cy = height / 2;
+            const radius = Math.min(cx, cy);
+            let nodes = parseInt(document.getElementById('nodes').value);
+
+            function drawCircle() {
+                circleCtx.clearRect(0, 0, width, height);
+
+                circleCtx.beginPath();
+                for (let x = 0; x < width; x++) {
+                    let angle = 2 * Math.PI * x / width;
+                    let wave1 = 0.5 * Math.sin(2 * nodes * Math.PI * (x / width - Date.now() / 4000.0));
+                    let wave2 = 0.5 * Math.sin(2 * nodes * Math.PI * (x / width + Date.now() / 4000.0));
+                    let r = radius + radius / 2 * (wave1 + wave2);
+                    let newX = cx + r * Math.cos(angle);
+                    let newY = cy + r * Math.sin(angle);
+                    circleCtx.lineTo(newX, newY);
+                }
+                circleCtx.closePath();
+                circleCtx.stroke();
+
+                circleCtx.fillStyle = 'red';
+                for (let n = 0; n <= nodes; n++) {
+                    circleCtx.beginPath();
+                    let angle = 2 * Math.PI * n / nodes;
+                    let r = radius;
+                    let x = cx + r * Math.cos(angle);
+                    let y = cy + r * Math.sin(angle);
+                    circleCtx.arc(x, y, 5, 0, 2 * Math.PI);
+                    circleCtx.fill();
+                }
+            }
+
+            function drawString() {
+                stringCtx.clearRect(0, 0, width, height);
+
+                stringCtx.beginPath();
+                for (let x = 0; x <= width; x++) {
+                    let wave1 = 0.5 * Math.sin(2 * nodes * Math.PI * (x / width - Date.now() / 4000.0));
+                    let wave2 = 0.5 * Math.sin(2 * nodes * Math.PI * (x / width + Date.now() / 4000.0));
+                    let y = height / 2 + height / 2 * (wave1 + wave2);
+                    stringCtx.lineTo(x, y);
+                }
+                stringCtx.stroke();
+
+                stringCtx.fillStyle = 'red';
+                for (let n = 0; n <= nodes; n++) {
+                    stringCtx.beginPath();
+                    let x = n / nodes * width;
+                    stringCtx.arc(x, height / 2, 5, 0, 2 * Math.PI);
+                    stringCtx.fill();
+                }
+            }
+
+            function drawWater() {
+                waterCtx.clearRect(0, 0, width, height);
+                let imageData = waterCtx.createImageData(width, height);
+                for (let x = 0; x < width; x++) {
+                    for (let y = 0; y < height; y++) {
+                        let totalWave = 0;
+                        for (let n = 0; n < nodes; n++) {
+                            let dx = x - n / nodes * width;
+                            let dy = y - height / 2;
+                            let distance = Math.sqrt(dx * dx + dy * dy);
+                            totalWave += Math.sin(2 * Math.PI * (distance / 100 - Date.now() / 4000.0));
+                        }
+                        let index = 4 * (x + y * width);
+                        imageData.data[index] = totalWave * 20 + 127.5;
+                        imageData.data[index + 1] = totalWave * 20 + 127.5;
+                        imageData.data[index + 2] = totalWave * 20 + 127.5;
+                        imageData.data[index + 3] = 255;
+                    }
+                }
+                waterCtx.putImageData(imageData, 0,                 0);
+            }
+
+            function updateCanvas() {
+                drawCircle();
+                drawString();
+                drawWater();
+                requestAnimationFrame(updateCanvas);
+            }
+
+            function updateNodes(value) {
+                document.getElementById('nodeNumber').value = value;
+                document.getElementById('nodes').value = value;
+                nodes = parseInt(value);
+            }
+
+            updateCanvas();
+
+            // 3D graphics setup
+            const renderer = new THREE.WebGLRenderer();
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, 2, 0.1, 1000);
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+            const torusGeometry = new THREE.TorusGeometry(0.7, 0.3, 16, 100);
+            const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+            const sphere = new THREE.Mesh(sphereGeometry, material);
+            const torus = new THREE.Mesh(torusGeometry, material);
+            const light = new THREE.PointLight(0xFFFFFF, 1, 1000);
+            let noise = new SimplexNoise();
+            
+            renderer.setSize(800, 400);
+            document.getElementById('3d-canvas').appendChild(renderer.domElement);
+            
+            camera.position.z = 2.5;
+            light.position.set(0,0,2);
+            
+            scene.add(sphere);
+            scene.add(torus);
+            scene.add(light);
+            
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                let time = Date.now() * 0.00005; // scale time for smooth animation
+                for (let i = 0; i < sphere.geometry.vertices.length; i++) {
+                    let p = sphere.geometry.vertices[i];
+                    p.normalize().multiplyScalar(1 + 0.3 * noise.noise3D(p.x + time, p.y, p.z));
+                }
+                
+                sphere.geometry.computeVertexNormals();
+                sphere.geometry.normalsNeedUpdate = true;
+                sphere.geometry.verticesNeedUpdate = true;
+
+                for (let i = 0; i < torus.geometry.vertices.length; i++) {
+                    let p = torus.geometry.vertices[i];
+                    p.normalize().multiplyScalar(1 + 0.1 * noise.noise2D(p.x + time, p.y + time));
+                }
+
+                torus.geometry.computeVertexNormals();
+                torus.geometry.normalsNeedUpdate = true;
+                torus.geometry.verticesNeedUpdate = true;
+                
+                controls.update();
+                renderer.render(scene, camera);
+            }
+
+            animate();
+        </script>
+    </body>
+</html>
+
